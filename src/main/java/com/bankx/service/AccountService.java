@@ -4,10 +4,14 @@ import com.bankx.dto.AccountRequest;
 import com.bankx.dto.AccountResponse;
 import com.bankx.entity.Account;
 import com.bankx.repository.AccountRepository;
+
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.UUID;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class AccountService {
@@ -17,31 +21,52 @@ public class AccountService {
         this.repo = repo;
     }
 
-    public AccountResponse openAccount(AccountRequest request){
-        if(!request.getAccountType().equalsIgnoreCase("SAVINGS") && !request.getAccountType().equalsIgnoreCase("CURRENT")){
-            throw new IllegalArgumentException("Invalid account type.");
+    @Transactional
+    public AccountResponse createAccount(AccountRequest request) {
+        String type = request.getAccountType().toUpperCase().trim();
+        if (!type.equals("SAVINGS")
+                && !type.equals("CURRENT")) {
+            throw new IllegalArgumentException("Invalid account type. Must be SAVINGS or CURRENT");
         }
 
-        //Generate account number
-        String accountNumber= UUID.randomUUID().toString().substring(0,8).toUpperCase();
-
         // create entity
-        Account account = new Account();
-        account.setAccountNumber(accountNumber);
-        account.setType(request.getAccountType().toUpperCase());
-        account.setBalance(BigDecimal.ZERO);
+        Account acc = new Account();
+        acc.setAccountNumber(generateAccountNumber());
+        acc.setType(type);
+        BigDecimal init = request.getInitialBalance()==null? BigDecimal.ZERO:request.getInitialBalance();
+        acc.setBalance(init);
+        acc.setCreatedAt(java.time.Instant.now());
 
         //save
-        Account  saved = repo.save(account);
+        Account saved = repo.save(acc);
+        return toResponse(saved);
+    }
 
-        //Build response
+    public AccountResponse getAccountById(Long id) {
+        Optional<Account> opt= repo.findById(id);
+        return opt.map(this::toResponse).orElseThrow(() -> new IllegalArgumentException("Account not found with id: "+ id));
+    }
+
+    public List<AccountResponse> listAccounts() {
+        return repo.findAll().stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    private AccountResponse toResponse(Account a){
         AccountResponse response = new AccountResponse();
-        response.setId(saved.getId());
-        response.setAccountNumber(saved.getAccountNumber());
-        response.setAccountType(request.getAccountType());
-        response.setBalance(saved.getBalance());
-        response.setCreatedAt(saved.getCreatedAt());
+        response.setId(a.getId());
+        response.setAccountNumber(a.getAccountNumber());
+        response.setAccountType(a.getType());
+        response.setBalance(a.getBalance());
+        response.setCreatedAt(a.getCreatedAt());
 
         return response;
+    }
+
+
+        private String generateAccountNumber(){
+        String prefix = "BX";
+        long rand = System.currentTimeMillis() % 1_000_000_000L;
+        return prefix+String.format("%09d",rand);
+
     }
 }
