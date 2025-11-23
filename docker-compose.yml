@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: bankx-postgres
+    environment:
+      POSTGRES_USER: bankx
+      POSTGRES_PASSWORD: bankx1234
+      POSTGRES_DB: bankxdb
+    ports:
+      - "5432:5432"
+    restart: always
